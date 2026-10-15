@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Dashboard meteorológico com OpenWeatherMap, gráficos e integração MQTT.">
+  <title>ClimaHub | Dashboard Meteorológico</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#" aria-label="ClimaHub página inicial"><span class="brand-mark">C</span><span>ClimaHub<small>PAINEL METEOROLÓGICO</small></span></a>
+      <button id="themeToggle" class="button button-ghost" type="button" aria-label="Alternar tema">Modo escuro</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="intro">
+      <div>
+        <p class="eyebrow">MONITORAMENTO EM TEMPO REAL</p>
+        <h1>Condições meteorológicas</h1>
+        <p class="muted">Consulte uma cidade e acompanhe os indicadores climáticos.</p>
+      </div>
+      <div class="update-pill"><span class="status-dot"></span><span id="lastUpdate">Aguardando primeira consulta</span></div>
+    </section>
+
+    <section class="search-panel panel" aria-labelledby="search-heading">
+      <h2 id="search-heading">Consultar localidade</h2>
+      <form id="searchForm">
+        <div class="field">
+          <label for="cityInput">Cidade</label>
+          <input type="text" id="cityInput" placeholder="Ex.: Brotas" autocomplete="address-level2" required>
+        </div>
+        <div class="field field-country">
+          <label for="countryInput">País (opcional)</label>
+          <input type="text" id="countryInput" placeholder="BR" maxlength="2" autocomplete="country">
+        </div>
+        <button type="submit" id="btnSearch" class="button button-primary">Consultar clima</button>
+        <button type="button" id="btnFavoriteSearch" class="button button-secondary">Consultar favorita</button>
+      </form>
+      <div id="loading" class="loading hidden" role="status" aria-live="polite"><span class="spinner"></span>Consultando dados meteorológicos...</div>
+      <p id="errorMessage" class="error-msg hidden" role="alert"></p>
+    </section>
+
+    <section class="current-panel panel" aria-labelledby="current-heading">
+      <div class="section-heading">
+        <div><p class="eyebrow">RESUMO ATUAL</p><h2 id="current-heading">Visão geral</h2></div>
+        <button id="btnFav" type="button" class="button button-secondary">Salvar cidade favorita</button>
+      </div>
+      <div class="weather-summary">
+        <div class="location-block">
+          <p class="muted">Localização consultada</p>
+          <h3 id="cardCity">Nenhuma cidade consultada</h3>
+          <p id="weatherDescription" class="weather-description">Os dados aparecerão aqui após a consulta.</p>
+        </div>
+        <div class="main-temperature"><span id="weatherIcon" aria-hidden="true">☁</span><strong id="cardTemp">--°C</strong><span class="muted">Temperatura atual</span></div>
+      </div>
+      <div class="cards-grid">
+        <article class="metric-card"><span class="metric-icon" aria-hidden="true">🌡</span><p class="metric-label">Sensação térmica</p><strong id="cardFeelsLike">-- °C</strong></article>
+        <article class="metric-card"><span class="metric-icon" aria-hidden="true">💧</span><p class="metric-label">Umidade</p><strong id="cardHumidity">-- %</strong></article>
+        <article class="metric-card"><span class="metric-icon" aria-hidden="true">💨</span><p class="metric-label">Vento</p><strong id="cardWind">-- km/h</strong></article>
+        <article class="metric-card"><span class="metric-icon" aria-hidden="true">◉</span><p class="metric-label">Pressão</p><strong id="cardPressure">-- hPa</strong></article>
+        <article class="metric-card"><span class="metric-icon" aria-hidden="true">↘</span><p class="metric-label">Temperatura mínima</p><strong id="cardMin">-- °C</strong></article>
+        <article class="metric-card"><span class="metric-icon" aria-hidden="true">↗</span><p class="metric-label">Temperatura máxima</p><strong id="cardMax">-- °C</strong></article>
+      </div>
+      <div id="weatherAlert" class="alert-card hidden" role="status" aria-live="polite"><strong>Alerta climático</strong><p id="alertText"></p></div>
+    </section>
+
+    <div class="content-grid">
+      <section class="panel chart-section" aria-labelledby="chart-heading">
+        <div class="section-heading"><div><p class="eyebrow">ACOMPANHAMENTO</p><h2 id="chart-heading">Histórico da sessão</h2></div></div>
+        <p class="muted chart-help">Compare temperatura e umidade das últimas consultas realizadas nesta sessão.</p>
+        <div class="chart-container"><canvas id="weatherChart" role="img" aria-label="Gráfico de temperatura e umidade das últimas consultas"></canvas></div>
+      </section>
+      <section class="panel history-section" aria-labelledby="history-heading">
+        <div class="section-heading"><div><p class="eyebrow">CONSULTAS RECENTES</p><h2 id="history-heading">Histórico</h2></div><button id="clearHistory" class="text-button" type="button">Limpar</button></div>
+        <ul id="historyList" class="history-list"><li class="empty-state">As consultas aparecerão aqui.</li></ul>
+      </section>
+    </div>
+
+    <section class="panel favorite-panel">
+      <div><p class="eyebrow">ACESSO RÁPIDO</p><h2>Minha cidade favorita</h2><p id="favCityName" class="muted">Nenhuma cidade favorita salva.</p></div>
+      <button id="removeFavorite" class="button button-secondary" type="button">Remover favorita</button>
+    </section>
+
+    <section class="panel mqtt-section" aria-labelledby="mqtt-heading">
+      <div class="section-heading"><div><p class="eyebrow">INTERNET DAS COISAS</p><h2 id="mqtt-heading">Integração MQTT</h2></div><span id="mqttStatus" class="status-badge" role="status">Conectando…</span></div>
+      <div class="mqtt-grid">
+        <div><span class="detail-label">Broker</span><strong id="mqttBroker">broker.hivemq.com:8000</strong></div>
+        <div><span class="detail-label">Tópico publicado</span><strong id="mqttTopic">Ainda não publicado</strong></div>
+      </div>
+      <p class="detail-label payload-label">Último payload enviado</p>
+      <pre id="mqttPayload" class="payload">Aguardando consulta meteorológica…</pre>
+      <p class="mqtt-note">O broker público é compartilhado. Não publique dados pessoais ou informações confidenciais.</p>
+    </section>
+  </main>
+
+  <footer><p>ClimaHub — Projeto educacional SENAI São Paulo</p><p>Dados meteorológicos: OpenWeatherMap · Mensageria: MQTT</p></footer>
+</body>
+</html>
